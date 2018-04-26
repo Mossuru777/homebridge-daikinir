@@ -8,7 +8,6 @@ let Service, Characteristic, UUIDGen;
 enum DaikinAcMode {
     Auto = 'auto',
     Cold = 'cold',
-    Dry = 'dry',
     Fan = 'fan',
     Warm = 'warm'
 }
@@ -24,19 +23,22 @@ interface DaikinACState {
 class DaikinIrAccessory {
     private static readonly Model = 'Daikin IR Controlled Air Conditioner';
 
-    private static readonly AutoDefaultTemp = 0;
     private static readonly ColdDefaultTemp = 25;
     private static readonly WarmDefaultTemp = 19;
-    private static readonly DryDefaultTemp = 0;
-    // private static readonly FanFixedTemp = 25;
 
     private readonly accessoryName: string;
+
+    private informationService: any;
+    private mainPowerSwitchService: any;
+    private thermostatService: any;
+    private swingSwitchService: any;
+    private powerfulSwitchService: any;
 
     // target settings
     private currentState: DaikinACState = {
         power: false,
-        mode: DaikinAcMode.Auto,
-        targetCelsiusTemp: DaikinIrAccessory.AutoDefaultTemp,
+        mode: DaikinAcMode.Cold,
+        targetCelsiusTemp: DaikinIrAccessory.ColdDefaultTemp,
         swing: true,
         powerful: false
     };
@@ -50,35 +52,41 @@ class DaikinIrAccessory {
     // Accessory related methods
     getServices() {
         // register AccessoryInformation Service
-        const informationService = new Service.AccessoryInformation();
-        informationService
+        this.informationService = new Service.AccessoryInformation();
+        this.informationService
             .setCharacteristic(Characteristic.Manufacturer, PluginName)
             .setCharacteristic(Characteristic.Model, DaikinIrAccessory.Model)
             .setCharacteristic(Characteristic.Name, this.config.name)
             .setCharacteristic(Characteristic.SerialNumber, UUIDGen.generate(this.config.name));
 
-        // register HeaterCooler Service
-        const heaterCoolerService = new Service.HeaterCooler(this.accessoryName);
+        // register Main Power Switch Service
+        this.mainPowerSwitchService = new Service.Switch(`${this.accessoryName} MainPower`);
+        this.mainPowerSwitchService.getCharacteristic(Characteristic.On)
+            .on('get', this.getMainPowerState.bind(this))
+            .on('set', this.setMainPowerState.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.Active)
-            .on('get', this.getActive.bind(this))
-            .on('set', this.setActive.bind(this));
+        // register Thermostat Service
+        this.thermostatService = new Service.Thermostat(this.accessoryName);
 
-        heaterCoolerService.getCharacteristic(Characteristic.CurrentHeaterCoolerState)
-            .on('get', this.getCurrentHeaterCoolerState.bind(this));
+        this.thermostatService.getCharacteristic(Characteristic.CurrentHeatingCoolingState)
+            .on('get', this.getCurrentHeatingCoolingState.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.TargetHeaterCoolerState)
-            .on('get', this.getTargetHeaterCoolerState.bind(this))
-            .on('set', this.setTargetHeaterCoolerState.bind(this));
+        this.thermostatService.getCharacteristic(Characteristic.TargetHeatingCoolingState)
+            .on('get', this.getTargetHeatingCoolingState.bind(this))
+            .on('set', this.setTargetHeatingCoolingState.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.CurrentTemperature)
+        this.thermostatService.getCharacteristic(Characteristic.CurrentTemperature)
             .on('get', this.getCurrentTemperature.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.SwingMode)
-            .on('get', this.getSwingMode.bind(this))
-            .on('set', this.setSwingMode.bind(this));
+        this.thermostatService.getCharacteristic(Characteristic.TargetTemperature)
+            .on('get', this.getTargetTemperature.bind(this))
+            .on('set', this.setTargetTemperature.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.CoolingThresholdTemperature)
+        this.thermostatService.getCharacteristic(Characteristic.TemperatureDisplayUnits)
+            .on('get', this.getTemperatureDisplayUnits.bind(this))
+            .on('set', this.setTemperatureDisplayUnits.bind(this));
+
+        this.thermostatService.getCharacteristic(Characteristic.CoolingThresholdTemperature)
             .setProps({
                 maxValue: 32,
                 minValue: 18,
@@ -87,7 +95,7 @@ class DaikinIrAccessory {
             .on('get', this.getTargetTemperature.bind(this))
             .on('set', this.setCoolingTemperature.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.HeatingThresholdTemperature)
+        this.thermostatService.getCharacteristic(Characteristic.HeatingThresholdTemperature)
             .setProps({
                 maxValue: 30,
                 minValue: 14,
@@ -96,85 +104,82 @@ class DaikinIrAccessory {
             .on('get', this.getTargetTemperature.bind(this))
             .on('set', this.setHeatingTemperature.bind(this));
 
-        heaterCoolerService.getCharacteristic(Characteristic.TemperatureDisplayUnits)
-            .on('get', this.getTemperatureDisplayUnits.bind(this))
-            .on('set', this.setTemperatureDisplayUnits.bind(this));
+        // register Swing Switch Service
+        this.swingSwitchService = new Service.Switch(`${this.accessoryName} Swing`);
+        this.swingSwitchService.getCharacteristic(Characteristic.On)
+            .on('get', this.getSwingState.bind(this))
+            .on('set', this.setSwingState.bind(this));
 
-        // register HumidifierDehumidifier Service
-        const humidifierDehumidifierService = new Service.HumidifierDehumidifier(this.accessoryName);
+        // register Powerful Switch Service
+        this.powerfulSwitchService = new Service.Switch(`${this.accessoryName} Powerful`);
+        this.powerfulSwitchService.getCharacteristic(Characteristic.On)
+            .on('get', this.getPowerfulState.bind(this))
+            .on('set', this.setPowerfulState.bind(this));
 
-        humidifierDehumidifierService.getCharacteristic(Characteristic.CurrentRelativeHumidity)
-            .on('get', this.getCurrentRelativeHumidity.bind(this));
-
-        humidifierDehumidifierService.getCharacteristic(Characteristic.CurrentHumidifierDehumidifierState)
-            .on('get', this.getCurrentHumidifierDehumidifierState.bind(this));
-
-        humidifierDehumidifierService.getCharacteristic(Characteristic.TargetHumidifierDehumidifierState)
-            .on('get', this.getTargetHumidifierDehumidifierState.bind(this))
-            .on('set', this.setTargetHumidifierDehumidifierState.bind(this));
-
-        humidifierDehumidifierService.getCharacteristic(Characteristic.Active)
-            .on('get', this.getActive.bind(this))
-            .on('set', this.setActive.bind(this));
-
-        humidifierDehumidifierService.getCharacteristic(Characteristic.SwingMode)
-            .on('get', this.getSwingMode.bind(this))
-            .on('set', this.setSwingMode.bind(this));
-
-        return [informationService, heaterCoolerService, humidifierDehumidifierService];
+        return [this.informationService,this.mainPowerSwitchService, this.thermostatService,
+            this.swingSwitchService, this.powerfulSwitchService];
     }
 
     identify(callback) {
       callback();
     }
 
-    // HeaterCooler Service Characteristic getter/setter
+    // Main Power Switch Characteristic getter/setter
+    getMainPowerState(callback) {
+        callback(null, this.currentState.power);
+    }
 
-    getCurrentHeaterCoolerState(callback) {
+    setMainPowerState(value, callback) {
+        const newState = this.copyState();
+        newState.power = value;
+        this.sendStateToAPI(newState, callback);
+    }
+
+    // Thermostat Service Characteristic getter/setter
+
+    getCurrentHeatingCoolingState(callback) {
         const state = (() => {
             if (!this.currentState.power) {
-                return Characteristic.CurrentHeaterCoolerState.INACTIVE;
+                return Characteristic.CurrentHeatingCoolingState.OFF;
             }
             switch (this.currentState.mode) {
                 case DaikinAcMode.Auto:
-                    return Characteristic.CurrentHeaterCoolerState.INACTIVE;
-                case DaikinAcMode.Cold:
-                    return Characteristic.CurrentHeaterCoolerState.COOL;
-                case DaikinAcMode.Warm:
-                    return Characteristic.CurrentHeaterCoolerState.HEAT;
-                case DaikinAcMode.Dry:
                 case DaikinAcMode.Fan:
-                    return Characteristic.CurrentHeaterCoolerState.IDLE;
+                    return Characteristic.CurrentHeatingCoolingState.OFF;
+                case DaikinAcMode.Cold:
+                    return Characteristic.CurrentHeatingCoolingState.COOL;
+                case DaikinAcMode.Warm:
+                    return Characteristic.CurrentHeatingCoolingState.HEAT;
             }
         })();
         callback(null, state);
     }
 
-    getTargetHeaterCoolerState(callback) {
+    getTargetHeatingCoolingState(callback) {
         const state = (() => {
             if (!this.currentState.power) {
-                return Characteristic.TargetHeaterCoolerState.AUTO;
+                return Characteristic.TargetHeatingCoolingState.OFF;
             }
             switch (this.currentState.mode) {
-                case DaikinAcMode.Cold:
-                    return Characteristic.TargetHeaterCoolerState.COOL;
-                case DaikinAcMode.Warm:
-                    return Characteristic.TargetHeaterCoolerState.HEAT;
                 case DaikinAcMode.Auto:
-                case DaikinAcMode.Dry:
                 case DaikinAcMode.Fan:
-                    return Characteristic.TargetHeaterCoolerState.AUTO;
+                    return Characteristic.TargetHeatingCoolingState.OFF;
+                case DaikinAcMode.Cold:
+                    return Characteristic.TargetHeatingCoolingState.COOL;
+                case DaikinAcMode.Warm:
+                    return Characteristic.TargetHeatingCoolingState.HEAT;
             }
         })();
         callback(null, state);
     }
-    setTargetHeaterCoolerState(value, callback) {
+
+    setTargetHeatingCoolingState(value, callback) {
         const newState = this.copyState();
         newState.mode = value;
         switch (value) {
             case Characteristic.TargetHeaterCoolerState.AUTO:
-                newState.targetCelsiusTemp = DaikinIrAccessory.AutoDefaultTemp;
-                break;
+                callback(new Error('Can\'t set HeatingCoolingState to Auto.'));
+                return;
             case Characteristic.TargetHeaterCoolerState.COOL:
                 newState.targetCelsiusTemp = DaikinIrAccessory.ColdDefaultTemp;
                 break;
@@ -196,107 +201,62 @@ class DaikinIrAccessory {
         callback(null, this.getCurrentDisplayUnitTemp(this.currentState.targetCelsiusTemp));
     }
 
-    private setTargetTemperature(mode: DaikinAcMode, value, callback) {
+    setTargetTemperature(value, callback) {
         const newState = this.copyState();
-        newState.mode = mode;
         newState.targetCelsiusTemp = this.getCelsiusTemp(value);
         this.sendStateToAPI(newState, callback);
     }
 
     setCoolingTemperature(value, callback) {
-        this.setTargetTemperature(DaikinAcMode.Cold, value, callback);
+        const newState = this.copyState();
+        newState.mode = DaikinAcMode.Cold;
+        newState.targetCelsiusTemp = this.getCelsiusTemp(value);
+        this.sendStateToAPI(newState, callback);
     }
 
     setHeatingTemperature(value, callback) {
-        this.setTargetTemperature(DaikinAcMode.Warm, value, callback);
+        const newState = this.copyState();
+        newState.mode = DaikinAcMode.Warm;
+        newState.targetCelsiusTemp = this.getCelsiusTemp(value);
+        this.sendStateToAPI(newState, callback);
     }
 
     getTemperatureDisplayUnits(callback) {
         callback(null, this.temperatureDisplayUnits);
     }
+
     setTemperatureDisplayUnits(value, callback) {
         this.temperatureDisplayUnits = value;
         callback();
     }
 
-    // HumidifierDehumidifier Characteristic getter/setter
-    getCurrentRelativeHumidity(callback) {
-        callback(null, 50);
+    // Swing Switch Characteristic getter/setter
+    getSwingState(callback) {
+        callback(null, this.currentState.swing);
     }
 
-    getCurrentHumidifierDehumidifierState(callback) {
-        if (callback !== undefined) {
-            const state = (() => {
-                if (!this.currentState.power) {
-                    return Characteristic.CurrentHumidifierDehumidifierState.INACTIVE;
-                }
-                if (this.currentState.mode === DaikinAcMode.Dry) {
-                    return Characteristic.CurrentHumidifierDehumidifierState.DEHUMIDIFYING;
-                } else {
-                    return Characteristic.CurrentHumidifierDehumidifierState.IDLE;
-                }
-            })();
-            callback(null, state);
-        }
-    }
-
-    getTargetHumidifierDehumidifierState(callback) {
-        if (callback !== undefined) {
-            const state = (this.currentState.power && this.currentState.mode === DaikinAcMode.Dry) ?
-                Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIE :
-                Characteristic.TargetHumidifierDehumidifierState.HUMIDIFIER_OR_DEHUMIDIFIER;
-            callback(null, state);
-        }
-    }
-
-    setTargetHumidifierDehumidifierState(value, callback) {
+    setSwingState(value, callback) {
         const newState = this.copyState();
-        if (value === Characteristic.TargetHumidifierDehumidifierState.DEHUMIDIFIER) {
-            if (this.currentState.mode !== DaikinAcMode.Dry) {
-                newState.mode = DaikinAcMode.Dry;
-                newState.targetCelsiusTemp = DaikinIrAccessory.DryDefaultTemp;
-            }
-        } else if (value === Characteristic.TargetHumidifierDehumidifierState.HUMIDIFIER_OR_DEHUMIDIFIER) {
-            if (this.currentState.mode === DaikinAcMode.Dry) {
-                newState.mode = DaikinAcMode.Auto;
-                newState.targetCelsiusTemp = DaikinIrAccessory.AutoDefaultTemp;
-            }
-        } else {
-            if (callback !== undefined) {
-                callback(new Error('Dehumidifier can\'t be set to the specified state.'));
-            }
+        newState.swing = value;
+        this.sendStateToAPI(newState, callback);
+    }
+
+    // Powerful Switch Characteristic getter/setter
+    getPowerfulState(callback) {
+        callback(null, this.currentState.powerful);
+    }
+
+    setPowerfulState(value, callback) {
+        if (value === this.currentState.powerful) {
+            callback();
             return;
         }
+        const newState = this.copyState();
+        newState.powerful = value;
         this.sendStateToAPI(newState, callback);
     }
 
     // Common Characteristic getter/setter
-
-    getActive(callback) {
-        if (callback !== undefined) {
-            callback(null, this.currentState.power ? Characteristic.Active.ACTIVE : Characteristic.Active.INACTIVE);
-        }
-    }
-    setActive(value, callback) {
-        const newState = this.copyState();
-        newState.power = value === Characteristic.Active.ACTIVE;
-        this.sendStateToAPI(newState, callback);
-    }
-
-    getSwingMode(callback) {
-        if (callback !== undefined) {
-            const state = this.currentState.swing ?
-                Characteristic.SwingMode.SWING_ENABLED : Characteristic.SwingMode.SWING_DISABLED;
-            callback(null, state);
-        }
-    }
-
-    setSwingMode(value, callback) {
-        const newState = this.copyState();
-        newState.swing = value === Characteristic.SwingMode.SWING_ENABLED;
-        this.sendStateToAPI(newState, callback);
-    }
-
     private sendStateToAPI(newState: DaikinACState, callback) {
         let url = `${this.config.api_url}?power=${newState.power}`;
         if (newState.power) {
