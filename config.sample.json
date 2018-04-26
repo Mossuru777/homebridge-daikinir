@@ -1,0 +1,19 @@
+{
+  "bridge": {
+    "name": "Homebridge",
+    "username": "00:00:5E:00:53:00",
+    "port": 65535,
+    "pin": "123-45-678"
+  },
+
+  "accessories": [
+    {
+      "accessory": "daikinir",
+      "name": "Daikin AC",
+      "api_url": "http://192.0.2.1/api/v1/aircon"
+    }
+  ],
+
+  "platforms": [
+  ]
+}
