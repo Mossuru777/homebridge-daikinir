@@ -6,9 +6,7 @@ const AccessoryName = 'daikinir';
 let Service, Characteristic, UUIDGen;
 
 enum DaikinAcMode {
-    Auto = 'auto',
     Cold = 'cold',
-    Fan = 'fan',
     Warm = 'warm'
 }
 
@@ -31,8 +29,8 @@ class DaikinIrAccessory {
     private informationService: any;
     private mainPowerSwitchService: any;
     private thermostatService: any;
-    private swingSwitchService: any;
-    private powerfulSwitchService: any;
+    // private swingSwitchService: any;
+    // private powerfulSwitchService: any;
 
     // target settings
     private currentState: DaikinACState = {
@@ -104,20 +102,21 @@ class DaikinIrAccessory {
             .on('get', this.getTargetTemperature.bind(this))
             .on('set', this.setHeatingTemperature.bind(this));
 
-        // register Swing Switch Service
-        this.swingSwitchService = new Service.Switch(`${this.accessoryName} Swing`);
-        this.swingSwitchService.getCharacteristic(Characteristic.On)
-            .on('get', this.getSwingState.bind(this))
-            .on('set', this.setSwingState.bind(this));
+        // // register Swing Switch Service
+        // this.swingSwitchService = new Service.Switch(`${this.accessoryName} Swing`);
+        // this.swingSwitchService.getCharacteristic(Characteristic.On)
+        //     .on('get', this.getSwingState.bind(this))
+        //     .on('set', this.setSwingState.bind(this));
+        //
+        // // register Powerful Switch Service
+        // this.powerfulSwitchService = new Service.Switch(`${this.accessoryName} Powerful`);
+        // this.powerfulSwitchService.getCharacteristic(Characteristic.On)
+        //     .on('get', this.getPowerfulState.bind(this))
+        //     .on('set', this.setPowerfulState.bind(this));
 
-        // register Powerful Switch Service
-        this.powerfulSwitchService = new Service.Switch(`${this.accessoryName} Powerful`);
-        this.powerfulSwitchService.getCharacteristic(Characteristic.On)
-            .on('get', this.getPowerfulState.bind(this))
-            .on('set', this.setPowerfulState.bind(this));
-
-        return [this.informationService,this.mainPowerSwitchService, this.thermostatService,
-            this.swingSwitchService, this.powerfulSwitchService];
+        // return [this.informationService,this.mainPowerSwitchService, this.thermostatService,
+        //     this.swingSwitchService, this.powerfulSwitchService];
+        return [this.informationService, this.mainPowerSwitchService, this.thermostatService];
     }
 
     identify(callback) {
@@ -143,9 +142,6 @@ class DaikinIrAccessory {
                 return Characteristic.CurrentHeatingCoolingState.OFF;
             }
             switch (this.currentState.mode) {
-                case DaikinAcMode.Auto:
-                case DaikinAcMode.Fan:
-                    return Characteristic.CurrentHeatingCoolingState.OFF;
                 case DaikinAcMode.Cold:
                     return Characteristic.CurrentHeatingCoolingState.COOL;
                 case DaikinAcMode.Warm:
@@ -161,9 +157,6 @@ class DaikinIrAccessory {
                 return Characteristic.TargetHeatingCoolingState.OFF;
             }
             switch (this.currentState.mode) {
-                case DaikinAcMode.Auto:
-                case DaikinAcMode.Fan:
-                    return Characteristic.TargetHeatingCoolingState.OFF;
                 case DaikinAcMode.Cold:
                     return Characteristic.TargetHeatingCoolingState.COOL;
                 case DaikinAcMode.Warm:
