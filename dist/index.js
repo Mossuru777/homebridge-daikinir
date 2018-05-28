@@ -1,60 +1,39 @@
-import * as request_promise_native from 'request-promise-native';
-
+"use strict";
+const request_promise_native = require("request-promise-native");
 const PluginName = 'homebridge-daikinir';
 const AccessoryName = 'daikinir';
-
 let Service, Characteristic, UUIDGen;
-
-enum DaikinAcMode {
-    Cold = 'cold',
-    Warm = 'warm'
-}
-
-interface DaikinAcState {
-    power: boolean;
-    mode: DaikinAcMode;
-    targetCelsiusTemp: number;
-    swing: boolean;
-    powerful: boolean;
-}
-
+var DaikinAcMode;
+(function (DaikinAcMode) {
+    DaikinAcMode["Cold"] = "cold";
+    DaikinAcMode["Warm"] = "warm";
+})(DaikinAcMode || (DaikinAcMode = {}));
 class DaikinAcTemperatureRange {
-    constructor(readonly mid: number, readonly max: number, readonly min: number) {
+    constructor(mid, max, min) {
+        this.mid = mid;
+        this.max = max;
+        this.min = min;
     }
-
-    isInRange(temperature: number): boolean {
+    isInRange(temperature) {
         return temperature >= this.min && temperature <= this.max;
     }
 }
-
 class DaikinIrAccessory {
-    private static readonly Model = 'Daikin IR Controlled Air Conditioner';
-
-    private static readonly ColdTempRange = new DaikinAcTemperatureRange(25, 32, 18);
-    private static readonly WarmTempRange = new DaikinAcTemperatureRange(19, 30, 14);
-
-    private readonly accessoryName: string;
-
-    private readonly informationService: any;
-    // private mainPowerSwitchService: any;
-    private readonly thermostatService: any;
-    // private swingSwitchService: any;
-    // private powerfulSwitchService: any;
-
-    // target settings
-    private currentState: DaikinAcState = {
-        power: false,
-        mode: DaikinAcMode.Cold,
-        targetCelsiusTemp: DaikinIrAccessory.ColdTempRange.mid,
-        swing: true,
-        powerful: false
-    };
-    private temperatureDisplayUnits;
-
-    constructor(private readonly log: (msg) => any, private readonly config: any) {
+    constructor(log, config) {
+        this.log = log;
+        this.config = config;
+        // private swingSwitchService: any;
+        // private powerfulSwitchService: any;
+        // target settings
+        this.currentState = {
+            power: false,
+            mode: DaikinAcMode.Cold,
+            targetCelsiusTemp: DaikinIrAccessory.ColdTempRange.mid,
+            swing: true,
+            powerful: false
+        };
         this.accessoryName = `${this.config.name.replace(/-/g, ' ')}`;
         this.temperatureDisplayUnits = Characteristic.TemperatureDisplayUnits.CELSIUS;
-
         // register AccessoryInformation Service
         this.informationService = new Service.AccessoryInformation();
         this.informationService
@@ -62,34 +41,27 @@ class DaikinIrAccessory {
             .setCharacteristic(Characteristic.Model, DaikinIrAccessory.Model)
             .setCharacteristic(Characteristic.Name, this.config.name)
             .setCharacteristic(Characteristic.SerialNumber, UUIDGen.generate(this.config.name));
-
         // register Thermostat Service
         this.thermostatService = new Service.Thermostat(this.accessoryName);
-
         this.thermostatService.getCharacteristic(Characteristic.TargetHeatingCoolingState)
             .on('get', this.getTargetHeatingCoolingState.bind(this))
             .on('set', this.setTargetHeatingCoolingState.bind(this));
-
         this.thermostatService.getCharacteristic(Characteristic.TargetTemperature)
             .on('get', this.getTargetTemperature.bind(this))
             .on('set', this.setTargetTemperature.bind(this));
-
         this.thermostatService.getCharacteristic(Characteristic.TemperatureDisplayUnits)
             .on('get', this.getTemperatureDisplayUnits.bind(this))
             .on('set', this.setTemperatureDisplayUnits.bind(this));
     }
-
     // Accessory related methods
     getServices() {
         return [this.informationService, this.thermostatService];
     }
-
     identify(callback) {
         callback();
     }
-
     // Thermostat Service Characteristic getter/setter
-    private getTargetHeatingCoolingState(callback) {
+    getTargetHeatingCoolingState(callback) {
         const state = (() => {
             if (!this.currentState.power) {
                 return Characteristic.TargetHeatingCoolingState.OFF;
@@ -103,16 +75,13 @@ class DaikinIrAccessory {
         })();
         callback(null, state);
     }
-
-    private setTargetHeatingCoolingState(value, callback) {
+    setTargetHeatingCoolingState(value, callback) {
         const newState = this.copyState();
-
         if (value === Characteristic.TargetHeatingCoolingState.OFF) {
             newState.power = false;
             this.sendStateToAPI(newState, callback);
             return;
         }
-
         newState.power = true;
         switch (value) {
             case Characteristic.TargetHeatingCoolingState.COOL:
@@ -128,38 +97,31 @@ class DaikinIrAccessory {
                 callback(new Error(`Unknown HeatingCoolingState ${value}`));
                 return;
         }
-
         const temperatureRange = newState.mode === DaikinAcMode.Cold ? DaikinIrAccessory.ColdTempRange : DaikinIrAccessory.WarmTempRange;
         if (!temperatureRange.isInRange(newState.targetCelsiusTemp)) {
             newState.targetCelsiusTemp = temperatureRange.mid;
             this.thermostatService.getCharacteristic(Characteristic.TargetTemperature)
                 .updateValue(this.getCurrentDisplayUnitTemp(newState.targetCelsiusTemp));
         }
-
         this.sendStateToAPI(newState, callback);
     }
-
-    private getTargetTemperature(callback) {
+    getTargetTemperature(callback) {
         callback(null, this.getCurrentDisplayUnitTemp(this.currentState.targetCelsiusTemp));
     }
-
-    private setTargetTemperature(value, callback) {
+    setTargetTemperature(value, callback) {
         const newState = this.copyState();
         newState.targetCelsiusTemp = this.getCelsiusTemp(value);
         this.sendStateToAPI(newState, callback);
     }
-
-    private getTemperatureDisplayUnits(callback) {
+    getTemperatureDisplayUnits(callback) {
         callback(null, this.temperatureDisplayUnits);
     }
-
-    private setTemperatureDisplayUnits(value, callback) {
+    setTemperatureDisplayUnits(value, callback) {
         this.temperatureDisplayUnits = value;
         callback();
     }
-
     // Common Characteristic getter/setter
-    private sendStateToAPI(newState: DaikinAcState, callback) {
+    sendStateToAPI(newState, callback) {
         let url = `${this.config.api_url}?power=${newState.power}`;
         if (newState.power) {
             // url += `&mode=${newState.mode}&temp=${newState.targetCelsiusTemp}&swing=${newState.swing}&powerful=${newState.powerful}`;
@@ -179,46 +141,47 @@ class DaikinIrAccessory {
                     const json = JSON.parse(body);
                     if (json.hasOwnProperty('messages')) {
                         return json.messages.join('\n');
-                    } else {
+                    }
+                    else {
                         return body;
                     }
-                } catch {
+                }
+                catch (_a) {
                     return body;
                 }
             }
         })
             .then((message) => {
-                this.currentState = newState;
-                if (message !== undefined && message !== '') {
-                    this.log(message);
-                }
-                callback();
-            })
+            this.currentState = newState;
+            if (message !== undefined && message !== '') {
+                this.log(message);
+            }
+            callback();
+        })
             .catch(message => {
-                if (message !== undefined && message !== '') {
-                    this.log(`error occurred: ${message}`);
-                }
-                callback(new Error(message));
-            });
+            if (message !== undefined && message !== '') {
+                this.log(`error occurred: ${message}`);
+            }
+            callback(new Error(message));
+        });
     }
-
-    private getCurrentDisplayUnitTemp(celsius_temp): number {
+    getCurrentDisplayUnitTemp(celsius_temp) {
         if (this.temperatureDisplayUnits === Characteristic.TemperatureDisplayUnits.CELSIUS) {
             return celsius_temp;
-        } else {
+        }
+        else {
             return celsius_temp + 32;
         }
     }
-
-    private getCelsiusTemp(unknown_unit_temp): number {
+    getCelsiusTemp(unknown_unit_temp) {
         if (this.temperatureDisplayUnits === Characteristic.TemperatureDisplayUnits.CELSIUS) {
             return unknown_unit_temp;
-        } else {
+        }
+        else {
             return unknown_unit_temp - 32;
         }
     }
-
-    private copyState(): DaikinAcState {
+    copyState() {
         return {
             power: this.currentState.power,
             mode: this.currentState.mode,
@@ -228,11 +191,13 @@ class DaikinIrAccessory {
         };
     }
 }
-
-export = (homebridge) => {
+DaikinIrAccessory.Model = 'Daikin IR Controlled Air Conditioner';
+DaikinIrAccessory.ColdTempRange = new DaikinAcTemperatureRange(25, 32, 18);
+DaikinIrAccessory.WarmTempRange = new DaikinAcTemperatureRange(19, 30, 14);
+module.exports = (homebridge) => {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
     UUIDGen = homebridge.hap.uuid;
-
     homebridge.registerAccessory(PluginName, AccessoryName, DaikinIrAccessory);
 };
+//# sourceMappingURL=index.js.map
