@@ -1,6 +1,6 @@
 {
   "name": "homebridge-daikinir",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "description": "A Homebridge plugin that controls Daikin Air Conditioner through HomeAutomation API (DaikinIR).",
   "main": "dist/index.js",
@@ -15,22 +15,22 @@
   },
   "repository": "https://github.com/Mossuru777/homebridge-daikinir.git",
   "engines": {
-    "homebridge": ">=0.4.50",
+    "homebridge": ">=0.4.53",
     "node": ">=8.9.0"
   },
   "dependencies": {
-    "request": "^2.88.0",
-    "request-promise-native": "^1.0.7"
+    "request": "^2.88.2",
+    "request-promise-native": "^1.0.8"
   },
   "devDependencies": {
-    "@types/node": "^12.6.3",
-    "@types/request": "^2.48.2",
-    "@types/request-promise-native": "^1.0.16",
-    "tslint": "^5.18.0",
-    "typescript": "^3.5.3"
+    "@types/node": "^13.11.0",
+    "@types/request": "^2.48.4",
+    "@types/request-promise-native": "^1.0.17",
+    "tslint": "^6.1.1",
+    "typescript": "^3.8.3"
   },
   "peerDependencies": {
-    "homebridge": ">=0.4.50"
+    "homebridge": ">=0.4.53"
   },
   "scripts": {
     "build": "tsc"
