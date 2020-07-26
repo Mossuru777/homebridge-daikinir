@@ -27,7 +27,7 @@
     "@types/request": "^2.48.5",
     "@types/request-promise-native": "^1.0.17",
     "tslint": "^6.1.2",
-    "typescript": "^3.8.3"
+    "typescript": "^3.9.7"
   },
   "peerDependencies": {
     "homebridge": ">=0.4.53"
