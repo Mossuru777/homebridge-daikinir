@@ -36,18 +36,29 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Fetch Dependencies
+      - name: Check source changes
+        run: |
+          if [[ -z "$(git diff-tree --no-commit-id --name-only -m -r HEAD -- plugin/)" ]];
+          then
+            echo "::set-env name=detect_source_change::0"
+          else
+            echo "::set-env name=detect_source_change::1"
+          fi
+
+      - name: Fetch Dependencies (if detect source changed)
+        if: env.detect_source_change == '1'
         run: npm install
 
-      - name: Build
+      - name: Build (if detect source changed)
+        if: env.detect_source_change == '1'
         run: npm run build --if-present
 
       - name: Bump Version
-        run: npm --no-git-tag-version version
+        run: npm --no-git-tag-version version patch
 
       - name: Commit and Push
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: New version build for automatic PR merging.
+          commit_message: Release new version for automatic PR merging.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
