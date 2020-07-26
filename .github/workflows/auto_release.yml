@@ -5,6 +5,7 @@ on:
 
 jobs:
   merge-pr_and_release:
+    if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Merge Pull Request
