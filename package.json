@@ -1,6 +1,6 @@
 {
   "name": "homebridge-daikinir",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "private": true,
   "description": "A Homebridge plugin that controls Daikin Air Conditioner through HomeAutomation API (DaikinIR).",
   "main": "dist/index.js",
